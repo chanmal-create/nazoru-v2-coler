@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAぞる</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;700&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;600;700&family=Zen+Maru+Gothic:wght@400;700;900&family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap');
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #16140F;
+    color: #EDE7D9;
+    font-family: 'Noto Sans JP', sans-serif;
+    overscroll-behavior: none;
+  }
+
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(237,231,217,0.12);
+  }
+  header h1 { margin: 0; font-size: 14px; letter-spacing: 0.15em; color: #C9B98A; font-weight: 700; }
+  header p { margin: 4px 0 0; font-size: 11px; color: rgba(237,231,217,0.45); }
+
+  .mode-tabs {
+    display: flex;
+    gap: 6px;
+    margin-top: 14px;
+    background: #0D0C09;
+    border-radius: 6px;
+    padding: 5px;
+    border: 1px solid rgba(237,231,217,0.12);
+  }
+  .mode-tab {
+    flex: 1;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    padding: 12px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: rgba(237,231,217,0.5);
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+  }
+  .mode-tab.active {
+    background: #C9B98A;
+    color: #16140F;
+    font-weight: bold;
+    box-shadow: 0 2px 8px -2px rgba(0,0,0,0.5);
+  }
+
+  .body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .stage-shell { width: 100%; max-width: 760px; margin: 0 auto; }
+
+  .stage-outer {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1280 / 670;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px -25px rgba(0,0,0,0.7), 0 0 0 1px rgba(237,231,217,0.08);
+  }
+
+  .stage {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1280px;
+    height: 670px;
+    background: #F4EFE3;
+    transform-origin: top left;
+    touch-action: none;
+    user-select: none;
+  }
+
+  /* 描いている途中の軌跡（生の線） */
+  #drawCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1280px;
+    height: 670px;
+    pointer-events: none;
+  }
+
+  .glyph {
+    position: absolute;
+    top: 0; left: 0;
+    font-family: 'Shippori Mincho', serif;
+    font-weight: 700;
+    color: #221F1B;
+    line-height: 1;
+    white-space: nowrap;
+    will-change: transform;
+    transform-origin: center center;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+
+  .empty-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    color: rgba(34,31,27,0.32);
+    pointer-events: none;
+    padding: 0 40px;
+    line-height: 1.9;
+  }
+
+  .dims { text-align: center; font-size: 10px; letter-spacing: 0.12em; color: rgba(237,231,217,0.35); margin-top: 8px; }
+
+  .panel { max-width: 760px; margin: 0 auto; width: 100%; }
+
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-size: 11px; letter-spacing: 0.1em;
+    color: rgba(237,231,217,0.55); margin-bottom: 8px;
+  }
+
+  textarea#textInput {
+    width: 100%;
+    background: #1E1B14;
+    border: 1px solid rgba(237,231,217,0.18);
+    border-radius: 3px;
+    color: #EDE7D9;
+    font-size: 16px;
+    padding: 12px;
+    resize: vertical;
+    min-height: 48px;
+    font-family: inherit;
+  }
+  textarea#textInput:focus { outline: none; border-color: #C9B98A; }
+
+  .hint-box {
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(237,231,217,0.55);
+    background: #1E1B14;
+    border: 1px solid rgba(237,231,217,0.1);
+    border-radius: 4px;
+    padding: 12px 14px;
+  }
+  .hint-box b { color: #C9B98A; }
+
+  .palette-row, .font-row, .color-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .palette-chip {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+  }
+  .palette-chip.active { border-color: #C9B98A; }
+
+  .color-chip {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .color-chip.active { border-color: #C9B98A; box-shadow: 0 0 0 1px rgba(201,185,138,0.5); }
+
+  .color-input-chip {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px dashed rgba(237,231,217,0.4);
+    padding: 0;
+    cursor: pointer;
+    background: conic-gradient(red, orange, yellow, green, blue, violet, red);
+    flex-shrink: 0;
+  }
+  .color-input-chip::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; overflow: hidden; }
+  .color-input-chip::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+  .font-chip {
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: #EDE7D9;
+    background: #1E1B14;
+    border: 1px solid rgba(237,231,217,0.2);
+    border-radius: 4px;
+    padding: 9px 14px;
+    cursor: pointer;
+  }
+  .font-chip.active {
+    border-color: #C9B98A;
+    background: #262112;
+    color: #C9B98A;
+  }
+
+  .shape-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .shape-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1E1B14;
+    border: 1px solid rgba(237,231,217,0.18);
+    border-radius: 4px;
+    padding: 9px 12px;
+  }
+  .shape-item .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .shape-item .text-color-input {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(237,231,217,0.4);
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    background: transparent;
+  }
+  .shape-item .text-color-input::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; overflow: hidden; }
+  .shape-item .text-color-input::-webkit-color-swatch { border: none; border-radius: 50%; }
+  .shape-item .label {
+    flex: 1;
+    font-size: 12px;
+    color: rgba(237,231,217,0.75);
+  }
+  .shape-item .remove-btn {
+    font-family: inherit;
+    font-size: 11px;
+    color: rgba(237,231,217,0.6);
+    background: transparent;
+    border: 1px solid rgba(237,231,217,0.3);
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .shape-item .remove-btn:active { transform: translateY(1px); }
+
+  .actions { display: flex; gap: 10px; margin-top: 4px; }
+  .btn {
+    flex: 1;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    padding: 13px 0;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid rgba(237,231,217,0.35);
+    background: #2A2620;
+    color: #EDE7D9;
+    font-weight: 600;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: #C9B98A; color: #16140F; border-color: #C9B98A; font-weight: bold; }
+  .btn.secondary { background: #3C5246; color: #EDE7D9; border-color: #3C5246; font-weight: bold; }
+
+  @media (min-width: 900px) {
+    .body { flex-direction: row; align-items: flex-start; }
+    .stage-shell { flex: 1.4; position: sticky; top: 16px; }
+    .panel { flex: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>NAぞる</h1>
+    <p id="modeDesc">画面に線を描くと、その軌跡に沿って文字が並びます</p>
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="modeSingleTab">一筆書きモード</button>
+      <button class="mode-tab" id="modeDrawTab">お絵描きモード</button>
+    </div>
+  </header>
+
+  <div class="body">
+
+    <div class="stage-shell">
+      <div class="stage-outer" id="stageOuter">
+        <div class="stage" id="stage">
+          <div class="empty-hint" id="emptyHint">指やマウスでなぞって、<br>線を描いてください</div>
+          <canvas id="drawCanvas" width="1280" height="670"></canvas>
+        </div>
+      </div>
+      <div class="dims" id="dimsLabel">1280 × 670 px の比率 / 描き終えると文字が線に沿って並びます</div>
+    </div>
+
+    <div class="panel">
+
+      <div class="field">
+        <label>線に乗せる文字</label>
+        <textarea id="textInput" maxlength="100">言葉を、なぞる。</textarea>
+      </div>
+
+      <div class="actions" id="drawModeActions" style="display: none;">
+        <button class="btn secondary" id="placeTextBtn">文字を配置する</button>
+      </div>
+
+      <div class="field" id="shapeListField" style="display: none;">
+        <label>描いた図形（クリックで個別に削除）</label>
+        <div class="shape-list" id="shapeList"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="clearLineBtn">線を消す</button>
+        <button class="btn" id="clearAllBtn">文字も含めて消す</button>
+      </div>
+
+      <div class="field">
+        <label>背景色</label>
+        <div class="color-row" id="bgColorRow"></div>
+      </div>
+
+      <div class="field">
+        <label>文字色（デフォルト）</label>
+        <div class="color-row" id="fgColorRow"></div>
+        <div class="color-sub-label" id="fgSubLabel" style="display:none; margin-top: 8px; font-size: 11px; color: rgba(237,231,217,0.4); line-height: 1.6;">お絵描きモードでは、下の「描いた図形」欄で図形（線）ごとに文字色を個別に指定できます</div>
+      </div>
+
+      <div class="field">
+        <label>フォント</label>
+        <div class="font-row" id="fontRow"></div>
+      </div>
+
+      <div class="field">
+        <label>使い方</label>
+        <div class="hint-box" id="hintBox">
+          <b>ドラッグ（指でなぞる）</b>＝線を描く<br>
+          描き終えると、その線の長さにちょうど一周分だけ文字が並びます<br>
+          文字は線の向きに沿って傾きます
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="downloadBtn">PNGを書き出す</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const STAGE_W = 1280, STAGE_H = 670;
+  const stage = document.getElementById("stage");
+  const stageOuter = document.getElementById("stageOuter");
+  const drawCanvas = document.getElementById("drawCanvas");
+  const drawCtx = drawCanvas.getContext("2d");
+  const textInput = document.getElementById("textInput");
+  const emptyHint = document.getElementById("emptyHint");
+
+  // 背景色・文字色（デフォルト）はそれぞれ独立して自由に選べる。
+  // プリセットのチップ＋カスタムカラーピッカーの組み合わせ。
+  const BG_PRESETS = ["#FFFFFF", "#000000", "#F4EFE3", "#16140F", "#F5D400", "#8A2E2E", "#1A2A22", "#0B0B12", "#E8DEC8"];
+  const FG_PRESETS = ["#111111", "#FFFFFF", "#221F1B", "#EDE7D9", "#F5D400", "#E0455F", "#3FA7D6", "#6FCF97", "#B68CE0"];
+  let bgColor = "#F4EFE3";
+  let defaultFgColor = "#221F1B";
+
+  const FONTS = [
+    { name: "筆書き明朝", family: "'Shippori Mincho', serif", weight: 700 },
+    { name: "ゴシック", family: "'Noto Sans JP', sans-serif", weight: 900 },
+    { name: "明朝", family: "'Noto Serif JP', serif", weight: 700 },
+    { name: "丸ゴシック", family: "'Zen Maru Gothic', sans-serif", weight: 700 },
+    { name: "角ゴシック", family: "'Zen Kaku Gothic New', sans-serif", weight: 700 }
+  ];
+  let currentFontIdx = 0;
+
+  // お絵描きモードで複数の図形（線そのもの）を見分けるための色分け。文字色とは無関係。
+  const LINE_COLORS = ["#E0455F", "#3FA7D6", "#F2A33C", "#6FCF97", "#B68CE0"];
+
+  let glyphEls = [];      // 現在ステージに置かれている文字のDOM要素
+  let currentPath = [];   // 確定済みの最新の線（ステージ座標の配列）
+
+  // ---------- スケール換算 ----------
+  function applyStageScale() {
+    const outerRect = stageOuter.getBoundingClientRect();
+    const scale = outerRect.width / STAGE_W;
+    stage.style.transform = `scale(${scale})`;
+  }
+  function getScale() {
+    const outerRect = stageOuter.getBoundingClientRect();
+    return outerRect.width / STAGE_W;
+  }
+
+  const bgColorRow = document.getElementById("bgColorRow");
+  const fgColorRow = document.getElementById("fgColorRow");
+  const fgSubLabel = document.getElementById("fgSubLabel");
+
+  function buildColorRow(container, presets, getCurrent, onPick) {
+    container.innerHTML = "";
+    presets.forEach((c) => {
+      const chip = document.createElement("div");
+      chip.className = "color-chip" + (c.toLowerCase() === getCurrent().toLowerCase() ? " active" : "");
+      chip.style.background = c;
+      chip.addEventListener("click", () => {
+        onPick(c);
+        buildColorRow(container, presets, getCurrent, onPick);
+      });
+      container.appendChild(chip);
+    });
+    const customInput = document.createElement("input");
+    customInput.type = "color";
+    customInput.className = "color-input-chip";
+    customInput.value = getCurrent();
+    customInput.title = "custom";
+    customInput.addEventListener("input", () => {
+      onPick(customInput.value);
+    });
+    container.appendChild(customInput);
+  }
+
+  function refreshColorUIs() {
+    buildColorRow(bgColorRow, BG_PRESETS, () => bgColor, (c) => { bgColor = c; applyColors(); refreshColorUIs(); });
+    buildColorRow(fgColorRow, FG_PRESETS, () => defaultFgColor, (c) => { defaultFgColor = c; applyColors(); refreshColorUIs(); });
+  }
+
+  function applyColors() {
+    stage.style.background = bgColor;
+    glyphEls.forEach(el => {
+      const shapeId = el.dataset.shapeId;
+      let color = defaultFgColor;
+      if (shapeId) {
+        const shape = completedPaths.find(s => String(s.id) === shapeId);
+        if (shape && shape.color) color = shape.color;
+      }
+      el.style.color = color;
+    });
+    redrawPathPreview();
+  }
+
+  // ---------- フォントUI ----------
+  const fontRow = document.getElementById("fontRow");
+  FONTS.forEach((f, idx) => {
+    const chip = document.createElement("div");
+    chip.className = "font-chip" + (idx === 0 ? " active" : "");
+    chip.textContent = f.name;
+    chip.style.fontFamily = f.family;
+    chip.addEventListener("click", () => {
+      currentFontIdx = idx;
+      document.querySelectorAll(".font-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      applyFont();
+    });
+    fontRow.appendChild(chip);
+  });
+
+  function applyFont() {
+    const f = FONTS[currentFontIdx];
+    glyphEls.forEach(el => {
+      el.style.fontFamily = f.family;
+      el.style.fontWeight = f.weight;
+    });
+  }
+
+  // ---------- モード管理 ----------
+  let currentMode = "single"; // "single"（一筆書き） or "draw"（お絵描き）
+  let completedPaths = [];    // お絵描きモードで確定済みの複数の線 [{id, points, chars}, ...]
+  let nextShapeId = 1;
+  let pendingChars = [];      // 図形を削除したときに「行き場を失った文字」を一時的に置いておくキュー（先入れ先出し）
+
+  const modeSingleTab = document.getElementById("modeSingleTab");
+  const modeDrawTab = document.getElementById("modeDrawTab");
+  const modeDesc = document.getElementById("modeDesc");
+  const dimsLabel = document.getElementById("dimsLabel");
+  const hintBox = document.getElementById("hintBox");
+  const drawModeActions = document.getElementById("drawModeActions");
+
+  function setMode(mode) {
+    currentMode = mode;
+    modeSingleTab.classList.toggle("active", mode === "single");
+    modeDrawTab.classList.toggle("active", mode === "draw");
+    drawModeActions.style.display = mode === "draw" ? "flex" : "none";
+    fgSubLabel.style.display = mode === "draw" ? "block" : "none";
+
+    if (mode === "single") {
+      modeDesc.textContent = "画面に線を描くと、その軌跡に沿って文字が並びます";
+      dimsLabel.textContent = "1280 × 670 px の比率 / 描き終えると文字が線に沿って並びます";
+      hintBox.innerHTML = `
+        <b>ドラッグ（指でなぞる）</b>＝線を描く<br>
+        描き終えると、その線の長さにちょうど一周分だけ文字が並びます<br>
+        文字は線の向きに沿って傾きます
+      `;
+    } else {
+      modeDesc.textContent = "好きな図形をいくつでも描いて、まとめて文字を配置できます";
+      dimsLabel.textContent = "1280 × 670 px の比率 / 描き終えたら「文字を配置する」を押してください";
+      hintBox.innerHTML = `
+        <b>ドラッグ</b>＝線（図形）を描く。何本でも描けます<br>
+        描いた線の長さの比率で、文字数が自動的に振り分けられます<br>
+        準備ができたら<b>「文字を配置する」</b>を押してください
+      `;
+    }
+
+    // モードを切り替えたら、表示中の文字と線をいったん片付ける
+    glyphEls.forEach(el => el.remove());
+    glyphEls = [];
+    currentPath = [];
+    completedPaths = [];
+    pendingChars = [];
+    drawCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+    renderShapeList();
+    emptyHint.style.display = "flex";
+    emptyHint.innerHTML = mode === "single"
+      ? "指やマウスでなぞって、<br>線を描いてください"
+      : "指やマウスで図形を描いて、<br>「文字を配置する」を押してください";
+  }
+
+  modeSingleTab.addEventListener("click", () => setMode("single"));
+  modeDrawTab.addEventListener("click", () => setMode("draw"));
+
+  // ---------- 線を描く ----------
+  let isDrawing = false;
+  let rawPoints = []; // 描いている最中の生座標（ステージ座標系）
+
+  function clientToStage(clientX, clientY) {
+    const rect = stage.getBoundingClientRect();
+    const scale = getScale();
+    return {
+      x: (clientX - rect.left) / scale,
+      y: (clientY - rect.top) / scale
+    };
+  }
+
+  // 確定済みの線（お絵描きモード）と、描いている最中の線の両方を描き直す
+  function redrawPathPreview() {
+    drawCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+    drawCtx.strokeStyle = defaultFgColor;
+    drawCtx.lineCap = "round";
+    drawCtx.lineJoin = "round";
+
+    // お絵描きモードで確定済みの線は、はっきりした太さで残す。
+    // 図形ごとに色を変えることで、ステージ上でどれがどれか見分けやすくする（これは文字色とは別の識別用の色）。
+    if (currentMode === "draw") {
+      drawCtx.globalAlpha = 0.85;
+      drawCtx.lineWidth = 4;
+      completedPaths.forEach((shape, idx) => {
+        const path = shape.points;
+        if (path.length < 2) return;
+        drawCtx.strokeStyle = LINE_COLORS[idx % LINE_COLORS.length];
+        drawCtx.beginPath();
+        drawCtx.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) drawCtx.lineTo(path[i].x, path[i].y);
+        drawCtx.stroke();
+      });
+      drawCtx.strokeStyle = defaultFgColor;
+    }
+
+    // 今まさに描いている線は薄めに
+    if (rawPoints.length >= 2) {
+      drawCtx.globalAlpha = 0.55;
+      drawCtx.lineWidth = 3;
+      drawCtx.beginPath();
+      drawCtx.moveTo(rawPoints[0].x, rawPoints[0].y);
+      for (let i = 1; i < rawPoints.length; i++) drawCtx.lineTo(rawPoints[i].x, rawPoints[i].y);
+      drawCtx.stroke();
+    }
+    drawCtx.globalAlpha = 1;
+  }
+
+  let pointerDownInfo = null; // クリック（タップ）か描画かを区別するための開始情報
+
+  stage.addEventListener("pointerdown", (e) => {
+    isDrawing = true;
+    rawPoints = [clientToStage(e.clientX, e.clientY)];
+    pointerDownInfo = { x: e.clientX, y: e.clientY, time: Date.now() };
+    stage.setPointerCapture(e.pointerId);
+    emptyHint.style.display = "none";
+  });
+
+  stage.addEventListener("pointermove", (e) => {
+    if (!isDrawing) return;
+    const p = clientToStage(e.clientX, e.clientY);
+    const last = rawPoints[rawPoints.length - 1];
+    // 微小な揺れを無視して、なめらかさを保つ（点が近すぎると角度計算が不安定になるため）
+    const dist = Math.hypot(p.x - last.x, p.y - last.y);
+    if (dist > 2) {
+      rawPoints.push(p);
+      redrawPathPreview();
+    }
+  });
+
+  function finishDrawing(e) {
+    if (!isDrawing) return;
+    isDrawing = false;
+    try { stage.releasePointerCapture(e.pointerId); } catch (err) {}
+
+    // タップ（クリックして即離す）かドラッグ（線を描く）かを、
+    // 実際になぞった経路の総距離で判定する。
+    // 開始点と終了点の直線距離だと、円のように出発点に戻ってくる線を
+    // 誤ってタップと判定してしまうため、軌跡の総移動距離を使う。
+    const traveledDist = pathTotalLength(rawPoints);
+    const isTap = traveledDist < 8;
+    pointerDownInfo = null;
+
+    if (currentMode === "draw" && isTap) {
+      // お絵描きモードでのタップ：その場所に最も近い図形をヒット判定して削除する
+      const stagePoint = clientToStage(e.clientX, e.clientY);
+      tryRemoveShapeNear(stagePoint);
+      rawPoints = [];
+      redrawPathPreview();
+      return;
+    }
+
+    if (rawPoints.length >= 2) {
+      const simplified = simplifyPath(rawPoints);
+      if (currentMode === "single") {
+        // 一筆書きモード：描き終えた瞬間にすぐ文字を配置する
+        currentPath = simplified;
+        placeTextOnPath(textInput.value, currentPath);
+      } else {
+        // お絵描きモード：新しい図形を確定する。
+        // 行き場を失った文字（pendingChars）があれば、先頭から取り出してこの新しい図形に自動で割り当てる。
+        const newShape = { id: nextShapeId++, points: simplified, chars: [], color: null };
+        if (pendingChars.length) {
+          newShape.chars = pendingChars;
+          pendingChars = [];
+          completedPaths.push(newShape);
+          drawCharsForShape(newShape);
+        } else {
+          completedPaths.push(newShape);
+        }
+        renderShapeList();
+      }
+    }
+    rawPoints = [];
+    redrawPathPreview();
+  }
+
+  stage.addEventListener("pointerup", finishDrawing);
+  stage.addEventListener("pointercancel", finishDrawing);
+
+  // 連続する点列のうち、ほぼ同一直線上にある点を間引いて軽量化する
+  function simplifyPath(points) {
+    if (points.length <= 2) return points;
+    const result = [points[0]];
+    for (let i = 1; i < points.length - 1; i++) {
+      const prev = result[result.length - 1];
+      const cur = points[i];
+      if (Math.hypot(cur.x - prev.x, cur.y - prev.y) > 3) {
+        result.push(cur);
+      }
+    }
+    result.push(points[points.length - 1]);
+    return result;
+  }
+
+  // ---------- 図形（線）の管理：一覧表示・個別削除 ----------
+  const shapeListField = document.getElementById("shapeListField");
+  const shapeListEl = document.getElementById("shapeList");
+
+  function renderShapeList() {
+    shapeListEl.innerHTML = "";
+    if (currentMode !== "draw" || (!completedPaths.length && !pendingChars.length)) {
+      shapeListField.style.display = "none";
+      return;
+    }
+    shapeListField.style.display = "block";
+
+    completedPaths.forEach((shape, idx) => {
+      const item = document.createElement("div");
+      item.className = "shape-item";
+
+      // 線そのものの識別色（ステージ上でどれがどれか見分けるためのもの。文字色ではない）
+      const swatch = document.createElement("div");
+      swatch.className = "swatch";
+      swatch.style.background = LINE_COLORS[idx % LINE_COLORS.length];
+      swatch.title = "この図形の線の色（識別用）";
+
+      // この図形に乗る文字の色を個別に指定するピッカー
+      const textColorInput = document.createElement("input");
+      textColorInput.type = "color";
+      textColorInput.className = "text-color-input";
+      textColorInput.value = shape.color || defaultFgColor;
+      textColorInput.title = "この図形の文字色";
+      textColorInput.addEventListener("input", () => {
+        shape.color = textColorInput.value;
+        applyColors();
+      });
+
+      const charCount = shape.chars ? shape.chars.length : 0;
+      const label = document.createElement("div");
+      label.className = "label";
+      label.textContent = `図形 ${idx + 1}（文字 ${charCount} 個）`;
+
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "remove-btn";
+      removeBtn.textContent = "削除";
+      removeBtn.addEventListener("click", () => removeShape(shape.id));
+
+      item.appendChild(swatch);
+      item.appendChild(textColorInput);
+      item.appendChild(label);
+      item.appendChild(removeBtn);
+      shapeListEl.appendChild(item);
+    });
+
+    // 行き場を失っている文字があれば、それも分かるように表示する
+    if (pendingChars.length) {
+      const item = document.createElement("div");
+      item.className = "shape-item";
+      item.style.borderColor = "rgba(201,185,138,0.5)";
+
+      const swatch = document.createElement("div");
+      swatch.className = "swatch";
+      swatch.style.background = "#C9B98A";
+
+      const label = document.createElement("div");
+      label.className = "label";
+      label.textContent = `待機中の文字「${pendingChars.join("")}」（次に描く図形に自動で入ります）`;
+
+      item.appendChild(swatch);
+      item.appendChild(label);
+      shapeListEl.appendChild(item);
+    }
+  }
+
+  // 図形を1つ削除する（一覧からのクリック・ステージ上のタップ、どちらからも呼ばれる共通処理）。
+  // その図形に乗っていた文字だけを画面から取り除き、欠け文字キュー（pendingChars）の末尾に送る。
+  // 他の図形に乗っている文字には影響しない。
+  function removeShape(shapeId) {
+    const target = completedPaths.find(s => s.id === shapeId);
+    if (!target) return;
+
+    if (target.chars && target.chars.length) {
+      pendingChars = pendingChars.concat(target.chars);
+    }
+
+    completedPaths = completedPaths.filter(s => s.id !== shapeId);
+
+    // その図形に属する文字のDOM要素だけを取り除く（dataset.shapeIdで判別）
+    glyphEls = glyphEls.filter(el => {
+      if (el.dataset.shapeId === String(shapeId)) {
+        el.remove();
+        return false;
+      }
+      return true;
+    });
+
+    redrawPathPreview();
+    renderShapeList();
+    if (!completedPaths.length && !glyphEls.length) emptyHint.style.display = "flex";
+  }
+
+  // ステージ上の座標に最も近い図形を見つけて削除する（タップ削除用）。
+  // 図形の線からの最短距離がしきい値以内であれば「その図形をタップした」とみなす。
+  function tryRemoveShapeNear(point) {
+    const HIT_THRESHOLD = 28; // ステージ座標系での許容距離（px）
+    let closestId = null;
+    let closestDist = Infinity;
+
+    completedPaths.forEach(shape => {
+      const dist = distanceToPath(point, shape.points);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestId = shape.id;
+      }
+    });
+
+    if (closestId !== null && closestDist <= HIT_THRESHOLD) {
+      removeShape(closestId);
+    }
+  }
+
+  // 点から折れ線（複数の線分の連なり）までの最短距離を求める
+  function distanceToPath(point, points) {
+    let minDist = Infinity;
+    for (let i = 1; i < points.length; i++) {
+      const d = distanceToSegment(point, points[i - 1], points[i]);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  function distanceToSegment(p, a, b) {
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const lenSq = abx * abx + aby * aby;
+    let t = lenSq > 0 ? ((p.x - a.x) * abx + (p.y - a.y) * aby) / lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    const projX = a.x + abx * t, projY = a.y + aby * t;
+    return Math.hypot(p.x - projX, p.y - projY);
+  }
+
+  // ---------- 線の長さ・座標計算 ----------
+  function pathTotalLength(points) {
+    let len = 0;
+    for (let i = 1; i < points.length; i++) {
+      len += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return len;
+  }
+
+  // 線に沿って距離distだけ進んだ地点の座標と、その地点での進行方向（角度）を返す
+  function pointAtDistance(points, dist) {
+    let remaining = dist;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      if (segLen === 0) continue;
+      if (remaining <= segLen) {
+        const t = remaining / segLen;
+        return {
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          angle: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI
+        };
+      }
+      remaining -= segLen;
+    }
+    const last = points[points.length - 1];
+    const prev = points[points.length - 2];
+    return {
+      x: last.x,
+      y: last.y,
+      angle: Math.atan2(last.y - prev.y, last.x - prev.x) * 180 / Math.PI
+    };
+  }
+
+  // ---------- 文字を線に配置する ----------
+  function placeTextOnPath(text, points) {
+    glyphEls.forEach(el => el.remove());
+    glyphEls = [];
+
+    const chars = Array.from(text);
+    if (!chars.length || points.length < 2) return;
+
+    placeCharsOnSinglePath(chars, points, null);
+
+    applyColors();
+    applyFont();
+  }
+
+  // 1本の線に、与えられた文字配列をちょうど一周分だけ並べる（内部処理）。
+  // shapeIdを渡すと、生成した各文字のDOM要素に「どの図形に属するか」を記録する。
+  // これにより、図形を削除したときにその図形の文字だけを正確に取り除ける。
+  function placeCharsOnSinglePath(chars, points, shapeId) {
+    if (!chars.length || points.length < 2) return;
+    const totalLen = pathTotalLength(points);
+    if (totalLen < 4) return;
+
+    const step = totalLen / chars.length;
+    const fontSize = Math.max(16, Math.min(120, step * 1.05));
+
+    chars.forEach((ch, i) => {
+      const dist = step * (i + 0.5); // 各文字を区間の中央に置く
+      const { x, y, angle } = pointAtDistance(points, dist);
+
+      const el = document.createElement("div");
+      el.className = "glyph";
+      el.textContent = ch;
+      el.style.fontSize = fontSize + "px";
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+      if (shapeId !== null) el.dataset.shapeId = String(shapeId);
+      stage.appendChild(el);
+      glyphEls.push(el);
+    });
+  }
+
+  // 1つの図形（shape.points）に、その図形がすでに持っている文字（shape.chars）を描画する。
+  // 新しい図形が欠け文字キューから文字を受け取った直後などに使う。
+  function drawCharsForShape(shape) {
+    if (!shape.chars || !shape.chars.length) return;
+    placeCharsOnSinglePath(shape.chars, shape.points, shape.id);
+    applyColors();
+    applyFont();
+  }
+
+  // 複数の図形（線）に、それぞれの長さの比率で文字数を自動分配して配置する（お絵描きモード・初回配置用）。
+  // 例：長い線には多くの文字、短い線には少ない文字が割り当たる。
+  // 分配結果は各図形オブジェクトの chars に保存され、以後はこの図形ごとの文字として個別に扱われる。
+  function placeTextOnMultiplePaths(text, shapes) {
+    glyphEls.forEach(el => el.remove());
+    glyphEls = [];
+    pendingChars = []; // 全体を再配置するので、欠け文字キューはリセットする
+
+    const chars = Array.from(text);
+    const validShapes = shapes.filter(s => s.points.length >= 2 && pathTotalLength(s.points) >= 4);
+    if (!chars.length || !validShapes.length) return;
+
+    const lengths = validShapes.map(s => pathTotalLength(s.points));
+    const totalLength = lengths.reduce((a, b) => a + b, 0);
+
+    // 各図形に「長さの比率 × 全文字数」の文字数を割り当てる。
+    // 四捨五入の誤差で合計が文字数とズレることがあるため、最後に差分を一番長い図形に寄せて調整する。
+    let counts = lengths.map(len => Math.max(1, Math.round((len / totalLength) * chars.length)));
+    let diff = chars.length - counts.reduce((a, b) => a + b, 0);
+    if (diff !== 0) {
+      const longestIdx = lengths.indexOf(Math.max(...lengths));
+      counts[longestIdx] = Math.max(1, counts[longestIdx] + diff);
+    }
+
+    let cursor = 0;
+    validShapes.forEach((shape, i) => {
+      const n = Math.min(counts[i], chars.length - cursor);
+      const lineChars = chars.slice(cursor, cursor + n);
+      cursor += n;
+      shape.chars = lineChars;
+      placeCharsOnSinglePath(lineChars, shape.points, shape.id);
+    });
+
+    applyColors();
+    applyFont();
+  }
+
+  // ---------- テキスト変更時：既存の線があれば再配置 ----------
+  let debounceTimer = null;
+  textInput.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      if (currentMode === "single" && currentPath.length >= 2) {
+        placeTextOnPath(textInput.value, currentPath);
+      } else if (currentMode === "draw" && completedPaths.length) {
+        // テキストを変更したら、図形ごとの個別管理をリセットして全体を再分配し直す
+        placeTextOnMultiplePaths(textInput.value, completedPaths);
+      }
+    }, 200);
+  });
+
+  // ---------- 操作 ----------
+  // 「線を消す」：描画中・確定済みの線（プレビュー）だけを消す。配置済みの文字は残す。
+  document.getElementById("clearLineBtn").addEventListener("click", () => {
+    currentPath = [];
+    completedPaths = [];
+    rawPoints = [];
+    drawCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+    renderShapeList();
+    // 文字がまだ無いときだけ、なぞるよう促すヒントを再表示する
+    if (!glyphEls.length) emptyHint.style.display = "flex";
+  });
+
+  // 「文字も含めて消す」：線も文字も両方リセットする
+  document.getElementById("clearAllBtn").addEventListener("click", () => {
+    glyphEls.forEach(el => el.remove());
+    glyphEls = [];
+    currentPath = [];
+    completedPaths = [];
+    pendingChars = [];
+    rawPoints = [];
+    drawCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+    renderShapeList();
+    emptyHint.style.display = "flex";
+  });
+
+  document.getElementById("placeTextBtn").addEventListener("click", () => {
+    if (!completedPaths.length) return;
+    placeTextOnMultiplePaths(textInput.value, completedPaths);
+  });
+
+  document.getElementById("downloadBtn").addEventListener("click", () => {
+    exportToPng();
+  });
+
+  function exportToPng() {
+    const canvas = document.createElement("canvas");
+    canvas.width = STAGE_W;
+    canvas.height = STAGE_H;
+    const ctx = canvas.getContext("2d");
+    const fontDef = FONTS[currentFontIdx];
+
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+
+    glyphEls.forEach(el => {
+      const x = parseFloat(el.style.left);
+      const y = parseFloat(el.style.top);
+      const fontSize = parseFloat(el.style.fontSize);
+      const match = el.style.transform.match(/rotate\(([-\d.]+)deg\)/);
+      const angle = match ? parseFloat(match[1]) : 0;
+
+      // 図形ごとに個別の文字色が指定されていればそれを、なければデフォルト文字色を使う
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle * Math.PI / 180);
+      ctx.fillStyle = el.style.color || defaultFgColor;
+      ctx.font = `${fontDef.weight} ${fontSize}px ${fontDef.family}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(el.textContent, 0, fontSize * 0.05);
+      ctx.restore();
+    });
+
+    const link = document.createElement("a");
+    link.download = "line-text.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  // ---------- リサイズ ----------
+  window.addEventListener("resize", applyStageScale);
+
+  // ---------- 初期化 ----------
+  applyStageScale();
+  refreshColorUIs();
+  applyColors();
+})();
+</script>
+
+</body>
+</html>
