@@ -382,12 +382,10 @@
       <div class="field" id="bgImageAdjustField" style="display:none;">
         <label>画像の位置・拡大</label>
         <div class="bg-adjust-row">
-          <span class="bg-adjust-label">横位置</span>
-          <input type="range" id="bgOffsetXRange" min="0" max="100" value="50">
+          <button class="btn" id="bgPanModeBtn" style="flex:1;">画像を指で動かす（OFF）</button>
         </div>
-        <div class="bg-adjust-row">
-          <span class="bg-adjust-label">縦位置</span>
-          <input type="range" id="bgOffsetYRange" min="0" max="100" value="50">
+        <div class="hint-box" style="margin-bottom:12px;">
+          ONにすると、ステージ上を指やマウスでドラッグして背景画像の位置を動かせます（この間は線を描けません）。OFFに戻すといつも通り線を描けます。
         </div>
         <div class="bg-adjust-row">
           <span class="bg-adjust-label">拡大</span>
@@ -456,6 +454,8 @@
   let bgOffsetX = 50;          // 画像のどこを見せるか（横方向、0=左端〜100=右端）
   let bgOffsetY = 50;          // 画像のどこを見せるか（縦方向、0=上端〜100=下端）
   let bgZoom = 1;              // 追加の拡大率（1 = ステージいっぱいに敷いた状態、大きいほど寄る＝動かせる余地が増える）
+  let bgPanMode = false;       // true の間はステージのドラッグが線を描く代わりに画像を動かす操作になる
+  let panStart = null;         // 画像をドラッグで動かしている最中の開始情報
 
   const FONTS = [
     { name: "筆書き明朝", family: "'Shippori Mincho', serif", weight: 700 },
@@ -537,8 +537,7 @@
   const bgImageName = document.getElementById("bgImageName");
   const bgImageTag = document.getElementById("bgImageTag");
   const bgImageAdjustField = document.getElementById("bgImageAdjustField");
-  const bgOffsetXRange = document.getElementById("bgOffsetXRange");
-  const bgOffsetYRange = document.getElementById("bgOffsetYRange");
+  const bgPanModeBtn = document.getElementById("bgPanModeBtn");
   const bgZoomRange = document.getElementById("bgZoomRange");
   const resetBgAdjustBtn = document.getElementById("resetBgAdjustBtn");
 
@@ -602,7 +601,9 @@
 
         // 新しい画像を選んだら、位置・ズームは中央・等倍にリセットする
         bgOffsetX = 50; bgOffsetY = 50; bgZoom = 1;
-        bgOffsetXRange.value = 50; bgOffsetYRange.value = 50; bgZoomRange.value = 100;
+        bgZoomRange.value = 100;
+        bgPanMode = false;
+        updateBgPanModeUI();
 
         updateBgImageDisplay();
       };
@@ -618,24 +619,30 @@
     bgImageName.textContent = "";
     removeBgImageBtn.style.display = "none";
     bgImageAdjustField.style.display = "none";
+    bgPanMode = false;
+    updateBgPanModeUI();
     updateBgImageDisplay();
   });
 
-  bgOffsetXRange.addEventListener("input", () => {
-    bgOffsetX = parseFloat(bgOffsetXRange.value);
-    updateBgImageDisplay();
+  function updateBgPanModeUI() {
+    bgPanModeBtn.textContent = bgPanMode ? "画像を指で動かす（ON）" : "画像を指で動かす（OFF）";
+    bgPanModeBtn.classList.toggle("primary", bgPanMode);
+    stage.style.cursor = bgPanMode ? "grab" : "";
+  }
+
+  bgPanModeBtn.addEventListener("click", () => {
+    bgPanMode = !bgPanMode;
+    panStart = null;
+    updateBgPanModeUI();
   });
-  bgOffsetYRange.addEventListener("input", () => {
-    bgOffsetY = parseFloat(bgOffsetYRange.value);
-    updateBgImageDisplay();
-  });
+
   bgZoomRange.addEventListener("input", () => {
     bgZoom = parseFloat(bgZoomRange.value) / 100;
     updateBgImageDisplay();
   });
   resetBgAdjustBtn.addEventListener("click", () => {
     bgOffsetX = 50; bgOffsetY = 50; bgZoom = 1;
-    bgOffsetXRange.value = 50; bgOffsetYRange.value = 50; bgZoomRange.value = 100;
+    bgZoomRange.value = 100;
     updateBgImageDisplay();
   });
 
@@ -770,6 +777,25 @@
   let pointerDownInfo = null; // クリック（タップ）か描画かを区別するための開始情報
 
   stage.addEventListener("pointerdown", (e) => {
+    if (bgPanMode && bgImageEl) {
+      const geo = computeBgImageGeometry();
+      if (!geo) return;
+      const iw = bgImageEl.naturalWidth, ih = bgImageEl.naturalHeight;
+      const coverScale = Math.max(STAGE_W / iw, STAGE_H / ih);
+      const totalScale = coverScale * bgZoom;
+      const maxOffsetX = Math.max(0, iw * totalScale - STAGE_W);
+      const maxOffsetY = Math.max(0, ih * totalScale - STAGE_H);
+      panStart = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        startLeft: geo.left,
+        startTop: geo.top,
+        maxOffsetX,
+        maxOffsetY
+      };
+      stage.setPointerCapture(e.pointerId);
+      return;
+    }
     isDrawing = true;
     rawPoints = [clientToStage(e.clientX, e.clientY)];
     pointerDownInfo = { x: e.clientX, y: e.clientY, time: Date.now() };
@@ -778,6 +804,20 @@
   });
 
   stage.addEventListener("pointermove", (e) => {
+    if (bgPanMode) {
+      if (!panStart) return;
+      const scale = getScale();
+      const dx = (e.clientX - panStart.clientX) / scale;
+      const dy = (e.clientY - panStart.clientY) / scale;
+      let newLeft = panStart.startLeft + dx;
+      let newTop = panStart.startTop + dy;
+      newLeft = Math.max(-panStart.maxOffsetX, Math.min(0, newLeft));
+      newTop = Math.max(-panStart.maxOffsetY, Math.min(0, newTop));
+      bgOffsetX = panStart.maxOffsetX > 0 ? (-newLeft / panStart.maxOffsetX * 100) : 50;
+      bgOffsetY = panStart.maxOffsetY > 0 ? (-newTop / panStart.maxOffsetY * 100) : 50;
+      updateBgImageDisplay();
+      return;
+    }
     if (!isDrawing) return;
     const p = clientToStage(e.clientX, e.clientY);
     const last = rawPoints[rawPoints.length - 1];
@@ -790,6 +830,11 @@
   });
 
   function finishDrawing(e) {
+    if (bgPanMode) {
+      panStart = null;
+      try { stage.releasePointerCapture(e.pointerId); } catch (err) {}
+      return;
+    }
     if (!isDrawing) return;
     isDrawing = false;
     try { stage.releasePointerCapture(e.pointerId); } catch (err) {}
