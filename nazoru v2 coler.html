@@ -79,7 +79,10 @@
     top: 0; left: 0;
     width: 1280px;
     height: 670px;
-    background: #F4EFE3;
+    background-color: #F4EFE3;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     transform-origin: top left;
     touch-action: none;
     user-select: none;
@@ -267,10 +270,29 @@
     background: #2A2620;
     color: #EDE7D9;
     font-weight: 600;
+    text-align: center;
   }
   .btn:active { transform: translateY(1px); }
   .btn.primary { background: #C9B98A; color: #16140F; border-color: #C9B98A; font-weight: bold; }
   .btn.secondary { background: #3C5246; color: #EDE7D9; border-color: #3C5246; font-weight: bold; }
+
+  .bg-image-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .bg-image-row .btn {
+    flex: none;
+    padding: 10px 16px;
+    display: inline-block;
+  }
+  .bg-image-name {
+    font-size: 11px;
+    color: rgba(237,231,217,0.5);
+    max-width: 100%;
+    word-break: break-all;
+  }
 
   @media (min-width: 900px) {
     .body { flex-direction: row; align-items: flex-start; }
@@ -325,6 +347,20 @@
       </div>
 
       <div class="field">
+        <label>背景画像</label>
+        <div class="bg-image-row">
+          <label class="btn" for="bgImageInput">画像を選ぶ</label>
+          <input type="file" id="bgImageInput" accept="image/*" style="display:none;">
+          <button class="btn" id="removeBgImageBtn" style="display:none;">画像を削除</button>
+          <span class="bg-image-name" id="bgImageName"></span>
+        </div>
+        <div class="hint-box" style="margin-top:8px;">
+          画像を選ぶと、その画像が背景として敷かれます（下の「背景色」より優先されます）。<br>
+          画像は縦横比を保ったまま画面いっぱいにトリミングされて表示されます。
+        </div>
+      </div>
+
+      <div class="field">
         <label>背景色</label>
         <div class="color-row" id="bgColorRow"></div>
       </div>
@@ -375,6 +411,10 @@
   const FG_PRESETS = ["#111111", "#FFFFFF", "#221F1B", "#EDE7D9", "#F5D400", "#E0455F", "#3FA7D6", "#6FCF97", "#B68CE0"];
   let bgColor = "#F4EFE3";
   let defaultFgColor = "#221F1B";
+
+  // 背景画像（アップロードされた場合、背景色より優先して敷かれる）
+  let bgImageDataUrl = null;   // <img>のプレビュー用にそのまま使うdata URL
+  let bgImageEl = null;        // PNG書き出し時にcanvasへdrawImageするための読み込み済み画像
 
   const FONTS = [
     { name: "筆書き明朝", family: "'Shippori Mincho', serif", weight: 700 },
@@ -435,7 +475,14 @@
   }
 
   function applyColors() {
-    stage.style.background = bgColor;
+    // 背景：画像があれば画像を最優先で敷き、なければ背景色を使う
+    stage.style.backgroundColor = bgColor;
+    if (bgImageDataUrl) {
+      stage.style.backgroundImage = `url("${bgImageDataUrl}")`;
+    } else {
+      stage.style.backgroundImage = "none";
+    }
+
     glyphEls.forEach(el => {
       const shapeId = el.dataset.shapeId;
       let color = defaultFgColor;
@@ -446,6 +493,60 @@
       el.style.color = color;
     });
     redrawPathPreview();
+  }
+
+  // ---------- 背景画像アップロード ----------
+  const bgImageInput = document.getElementById("bgImageInput");
+  const removeBgImageBtn = document.getElementById("removeBgImageBtn");
+  const bgImageName = document.getElementById("bgImageName");
+
+  bgImageInput.addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      const img = new Image();
+      img.onload = () => {
+        bgImageDataUrl = dataUrl;
+        bgImageEl = img;
+        bgImageName.textContent = file.name;
+        removeBgImageBtn.style.display = "inline-block";
+        applyColors();
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  removeBgImageBtn.addEventListener("click", () => {
+    bgImageDataUrl = null;
+    bgImageEl = null;
+    bgImageInput.value = "";
+    bgImageName.textContent = "";
+    removeBgImageBtn.style.display = "none";
+    applyColors();
+  });
+
+  // 画像を、対象の幅・高さいっぱいに「はみ出た分は切り取る」形で描画する（CSSのbackground-size: coverと同じ挙動）
+  function drawImageCover(ctx, img, dx, dy, dw, dh) {
+    const imgRatio = img.width / img.height;
+    const boxRatio = dw / dh;
+    let sx, sy, sw, sh;
+    if (imgRatio > boxRatio) {
+      sh = img.height;
+      sw = sh * boxRatio;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / boxRatio;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
   }
 
   // ---------- フォントUI ----------
@@ -977,8 +1078,13 @@
     const ctx = canvas.getContext("2d");
     const fontDef = FONTS[currentFontIdx];
 
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+    // 背景：画像があれば画像を、なければ背景色を焼き込む
+    if (bgImageEl) {
+      drawImageCover(ctx, bgImageEl, 0, 0, STAGE_W, STAGE_H);
+    } else {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+    }
 
     glyphEls.forEach(el => {
       const x = parseFloat(el.style.left);
